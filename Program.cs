@@ -74,13 +74,13 @@ namespace BackOfficeUA
                           {
                             OpenFc(fileAttachment);
                           }
-                          else if (new string[] { "webreport@uralsibweb.ru", "romanovskijam@uralsib.ru", "GordinaTS@uralsib.ru", "novikovanv@uralsib.ru" , "MaltsevMY@uralsib.ru" }.Contains(e.From.Address))
+                          else if (new string[] { "webreport@uralsibweb.ru", "romanovskijam@uralsib.ru", "GordinaTS@uralsib.ru", "novikovanv@uralsib.ru", "MaltsevMY@uralsib.ru", "reports_VB@uralsib.ru" }.Contains(e.From.Address))
                           {
                             UralsibWeb(fileAttachment);
                           }
                           else if (e.From.Address == "back-office@open.ru")
                           {
-                            OpenBr(fileAttachment);
+                            await OpenBr(fileAttachment);
                           }
                           else if (e.From.Address.EndsWith("@bloomberg.net"))
                           {
@@ -101,13 +101,15 @@ namespace BackOfficeUA
                 }
                 ef.SyncState = icc.SyncState;
                 moreChangesAvailable = icc.MoreChangesAvailable;
+
+                using (var sw = new StreamWriter(FileName, false, Encoding.GetEncoding(1251)))
+                {
+                  sw.WriteLine(jss.Serialize(cfg));
+                  await sw.FlushAsync();
+                }
               }
               while (moreChangesAvailable);
             }
-          }
-          using (var sw = new StreamWriter(FileName, false, Encoding.GetEncoding(1251)))
-          {
-            sw.WriteLine(jss.Serialize(cfg));
           }
           //log.Write(DateTime.Now);
           //log.Write(" ");
@@ -183,12 +185,30 @@ namespace BackOfficeUA
       }
     }
 
-    private static void OpenBr(FileAttachment fileAttachment)
+    private static async System.Threading.Tasks.Task OpenBr(FileAttachment fileAttachment)
     {
       var d1 = new Regex("^2005_20\\d{2}-\\d{2}-\\d{2}_day_rus_MMVB_TP.zip$");
+      var d2 = new Regex("^2005_\\d{4}-\\d{2}-\\d{2}_day_rus_MMVB_TP.xml$");
       if (d1.IsMatch(fileAttachment.Name))
       {
-        fileAttachment.Load(Path.Combine(@"V:\VOL1\ASSETS\Reports_BROKER\OTKRYTIE\Отчет_брокера\", fileAttachment.Name));
+        var fn = Path.Combine(@"V:\VOL1\ASSETS\Reports_BROKER\OTKRYTIE\Отчет_брокера\", fileAttachment.Name);
+        fileAttachment.Load(fn);
+        using (ZipArchive archive = new ZipArchive(File.OpenRead(fn), ZipArchiveMode.Read))
+        {
+          foreach (var e in archive.Entries)
+          {
+            if (d2.IsMatch(Path.GetFileName(e.Name))) {
+            var fnb = Path.Combine(@"V:\VOL1\ASSETS\Reports_BROKER\OTKRYTIE\Отчет_брокера\orderbook", $"otk.xml");
+              using (Stream zipStream = e.Open())
+              {
+                using (FileStream fileStream = new FileStream(fnb, FileMode.Create))
+                {
+                  await zipStream.CopyToAsync(fileStream);
+                }
+              }
+            }
+          }
+        }
       }
     }
     private static async System.Threading.Tasks.Task Bcs(FileAttachment fileAttachment)
